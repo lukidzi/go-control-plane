@@ -2,17 +2,17 @@ module-sets:
   go-control-plane:
     version: v0.13.4
     modules:
-      - github.com/envoyproxy/go-control-plane
-      - github.com/envoyproxy/go-control-plane/xdsmatcher
+      - github.com/lukidzi/go-control-plane
+      - github.com/lukidzi/go-control-plane/xdsmatcher
   envoy:
     version: v1.32.3
     modules:
-      - github.com/envoyproxy/go-control-plane/envoy
-      - github.com/envoyproxy/go-control-plane/contrib
+      - github.com/lukidzi/go-control-plane/envoy
+      - github.com/lukidzi/go-control-plane/contrib
   ratelimit:
     version: v0.1.0
     modules:
-      - github.com/envoyproxy/go-control-plane/ratelimit
+      - github.com/lukidzi/go-control-plane/ratelimit
 excluded-modules:
-  - github.com/envoyproxy/go-control-plane/examples/dyplomat
-  - github.com/envoyproxy/go-control-plane/internal/tools
+  - github.com/lukidzi/go-control-plane/examples/dyplomat
+  - github.com/lukidzi/go-control-plane/internal/tools
