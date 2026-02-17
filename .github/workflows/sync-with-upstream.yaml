@@ -70,7 +70,7 @@ jobs:
     - name: Release new version
       if: steps.detect-tags.outputs.needs_release == 'true'
       run: |
-        git remote set-url origin https://${{ steps.github-app-token.outputs.token }}@github.com/kumahq/go-control-plane.git
+        git remote set-url origin https://${{ steps.github-app-token.outputs.token }}@github.com/lukidzi/go-control-plane.git
         git config user.name "${GH_USER}"
         git config user.email "${GH_EMAIL}"
         git checkout release
