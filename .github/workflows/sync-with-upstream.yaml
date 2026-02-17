@@ -1,0 +1,90 @@
+name: 'Sync with Upstream'
+
+on:
+  schedule:
+   - cron:  '0 6 * * *'
+    #scheduled at 06:00 everyday
+  workflow_dispatch: {}
+
+permissions:
+  actions: write
+  contents: write
+
+env:
+  GH_USER: "github-actions[bot]"
+  GH_EMAIL: "<41898282+github-actions[bot]@users.noreply.github.com>"
+
+jobs:
+  sync-with-upstream-main:
+    runs-on: ubuntu-latest
+    name: Sync with upstream main
+    steps:
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Generate GitHub app token
+      id: github-app-token
+      uses: actions/create-github-app-token@5d869da34e18e7287c1daad50e0b8ea0f506ce69 # v1.11.0
+      with:
+        app-id: ${{ secrets.APP_ID }}
+        private-key: ${{ secrets.APP_PRIVATE_KEY }}
+    - name: Sync upstream changes
+      id: sync
+      uses: aormsby/Fork-Sync-With-Upstream-action@v3.4.1
+      with:
+        git_config_user: ${{ env.GH_USER }}
+        git_config_email: ${{ env.GH_EMAIL }}
+        target_sync_branch: main
+        target_repo_token: ${{ steps.github-app-token.outputs.token }}
+        target_branch_push_args: "-f --tags"
+        upstream_sync_branch: main
+        upstream_sync_repo: envoyproxy/go-control-plane
+        upstream_pull_args: "--tags"
+        test_mode: false
+        git_config_pull_rebase: true
+    - name: New commits found
+      if: steps.sync.outputs.has_new_commits == 'true'
+      run: echo "New commits were found to sync."
+    - name: No new commits
+      if: steps.sync.outputs.has_new_commits == 'false'
+      run: echo "There were no new commits."
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+      with:
+        fetch-depth: 0
+    - name: Detect version tags and Kong versions
+      id: detect-tags
+      shell: bash
+      run: ".github/scripts/get-version-tags.sh"
+    - name: Print detection results
+      if: steps.detect-tags.outputs.needs_release == 'true'
+      run: |
+        echo "Rebase target: ${{ steps.detect-tags.outputs.rebase_target }}"
+        echo "Base commit: ${{ steps.detect-tags.outputs.base_commit }}"
+        echo ""
+        echo "New tags to be created:"
+        echo '${{ steps.detect-tags.outputs.new_tags }}' | jq -r '.[]'
+    - name: No action needed
+      if: steps.detect-tags.outputs.needs_release != 'true'
+      run: echo "All upstream tags already have Kong versions. No action needed."
+    - name: Release new version
+      if: steps.detect-tags.outputs.needs_release == 'true'
+      run: |
+        git remote set-url origin https://${{ steps.github-app-token.outputs.token }}@github.com/kumahq/go-control-plane.git
+        git config user.name "${GH_USER}"
+        git config user.email "${GH_EMAIL}"
+        git checkout release
+        git pull
+
+        # Rebase Kong custom commits onto the latest upstream tag commit
+        # This brings upstream changes up to the tag into release, with custom commits on top
+        echo "Rebasing release onto ${{ steps.detect-tags.outputs.rebase_target }}"
+        git rebase --onto ${{ steps.detect-tags.outputs.rebase_target }} ${{ steps.detect-tags.outputs.base_commit }} release
+
+        # Apply all module tags to HEAD (custom commits on top of upstream)
+        echo '${{ steps.detect-tags.outputs.new_tags }}' | jq -r '.[]' | while read -r tag; do
+          echo "Creating tag: $tag"
+          git tag "$tag"
+        done
+
+        git push origin release --tags --force-with-lease
